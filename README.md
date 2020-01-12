@@ -1,68 +1,98 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+### axios 第二次封装
 
-## Available Scripts
+#### 1. 封装前最原始的写法
 
-In the project directory, you can run:
+```js
+// get
+axios
+  .get(url, {
+    params: {
+      searchText: ""
+    }
+  })
+  .then(resp => {})
+  .catch(err => {});
 
-### `yarn start`
+// post
+axios
+  .post(url, {
+    username: "",
+    password: ""
+  })
+  .then(resp => {})
+  .catch(err => {});
+```
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+#### 2. 封装 url 地址
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+1. 每次请求都会请求一个 url 地址, 比如 http://127.0.0.1:port/api/xxx, 没请求一个后端接口,都要写这样长的地址
+2. 公司开发会区分开发环境(调用本地接口)，生产环境(真实服务器上的接口), 测试环境。我们会根据一些特殊的变量如环境变量进行区分,或者做一些处理
+3. 如果服务端采用的 cors 这种方式(跨域资源共享)，一般我们要允许客户端向服务端发请求携带资源凭证，比如携带 cookie，要不然跨域怎么携带 cookie 过去，不能每次发请求都单独写一遍携带 cookie(这也是重新封装 axios 的作用,需要提前做一些处理)
+4. POST 请求是通过请求主体发送给 server 的, 一般的公司的服务器都有对 post 接收 body 有一定的要求, 比如 json 格式，或者是 url-encoded
+5. 如果请求出现错误，统一处理错误反馈
+6. 当从服务器请求返回结果后,返回结果可能会有成功和失败的可能，失败也会有很多失败的情况
+7. 发请求断网了,错误处理等问题
+8. 对于接口请求的公共的处理的部分进行处理. 这才是封装的初衷
 
-### `yarn test`
+### axios 的全局配置项
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. 根据环境变量判断使用 axios 的配置项
 
-### `yarn build`
+```js
+// 根据环境变量区分接口的默认地址
+switch (process.env.NODE_ENV) {
+  case "production":
+    axios.defaults.baseURL = "http://api.landrich.cn:3000";
+    break;
+  case "test":
+    axios.defaults.baseURL = "http://localhost:3000/api";
+    break;
+  case "development":
+    axios.defaults.baseURL = "http://localhost:4000/api";
+    break;
+  default:
+    axios.defaults.baseURL = "http://localhost:5000/api";
+}
+```
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+2. 设置超时时间和跨域是否允许携带凭证
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+```js
+axios.defaults.timeout = 10000;
+axios.defaults.withCredentials = true;
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+3. 约定后端服务器可以接受的数据的格式
 
-### `yarn eject`
+```js
+/**
+ * 很多后台服务器一般接收请求数据的格式是x-www-form-urlencoded格式
+ * 后端约定请求(GET,POST)数据的格式,一般GET是url-encoded,POST如果是别的格式进行转换为服务器可以识别的格式
+ * 转换后的格式是: username=zhangsan&password=123
+ */
+// 处理GET请求数据的格式
+axios.defaults.headers["Content-Type"] = "application/x-www-form-urlencoded";
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+// 处理POST请求数据的格式, data是客户端发送请求的数据 请求主体body
+axios.defaults.transformRequest = data => {
+  return qs.stringify(data);
+};
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+4. 扩展 qs 包
 
-Instead, it will copy all the configuration files and the transitive dependencies (Webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+```js
+// 将字符串username=zhangsan&password=123转换为对象{username: xxx, password: xxx}
+qs.stringify(data);
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+5. JSON 的两个方法
 
-## Learn More
+```js
+// 将JSON对象转换为json字符串
+const jsonstr = JSON.stringify(data);
+// 将json格式字符串转换为json对象
+const jsonObj = JSON.parse(jsonstring);
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
-
-### Analyzing the Bundle Size
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
-
-### Making a Progressive Web App
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
-
-### Advanced Configuration
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
-
-### Deployment
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
-
-### `yarn build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+6. 设置请求拦截器
