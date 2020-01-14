@@ -911,3 +911,476 @@ socket.listen(server).on('connection', client => {
 })
 ```
 
+
+
+### 3. 自定义Redux库
+
+#### 3.1. 语法功能分析
+
+- redux库向外暴露下面几个函数
+
+```
+createStore(): 接收的参数是reducer函数, 返回的是store对象，对象包含了几个函数类型的属性
+combineReducer():接收包含n个reducer方法的对象,返回一个新的reducer函数
+applyMiddleware(): 可扩展的中间件,异步请求
+```
+
+- store对象的内部结构
+
+```
+getState(): 返回值为内部保存的state数据
+dispatch(): 参数为action对象,执行触发reducer的调用,就会产生新的状态,就会通知所有已经订阅好的监听
+subscribe(): 参数为监听内部state更新的回调函数, 可以调用多次，可以绑定多个监听，监听是函数
+```
+
+
+
+#### 3.2 createStore实现
+
+> redux的核心: 暴露三个函数, 生成一个store对象
+
+- 核心功能
+
+> 接收一个reducer函数, 返回一个store对象, store对象包含了三个方法,分别用于
+>
+> 1. 获取状态getState()
+> 2. 派发事件实现reducer的调用,进而更新state
+> 3. state更新的监听订阅容器
+
+- 参数分析
+
+reducer: 通常项目都是很多个reducer的组合, 是个函数
+
+- 返回值分析
+
+返回一个store对象 {}, 包含了几个方法
+
+- 思路
+
+1. 初始化store, 并初始化state状态
+2. 保存因为状态更新需要调用的监听函数
+3. dispatch函数触发reducer的执行, 保存新的状态, 调用监听函数容器
+
+```js
+// lib/index.js
+
+export function createStore (reducer) {
+    
+    let state = reducer(undefined, {type: '@@redux/init'})
+    let listeners = []
+    
+    function getState () {
+        return state
+    }
+    
+    // 执行reducer,更新状态,保存状态,调用监听容器的回调函数
+    function dispatch (action) {
+        let newState = reducer(state, action)
+        state = newState
+        listeners.forEach(listener => listener())
+    }
+    
+    function subscribe (listener) {
+        listeners.push(listener)
+    }
+    
+	return {
+        getState,
+        dispatch,
+        describe
+    }    
+}
+
+
+
+```
+
+- 再写一遍
+
+```js
+
+// 接收reducer组合(多个reducer),返回store对象
+export function createStore(reducer) {
+
+  // 执行createStore就会初始化state数据
+  // 用来存储内部状态数据的变量, 初始值为调用reducer函数返回的结果(外部指定的默认值)
+  let state = reducer(undefined, { type: '@@redux/init' })
+
+  // 用来存储监听state更新的回调函数的数组容器
+  const listeners = []
+
+  function getState() {
+    return state
+  }
+
+  function dispatch(action) {
+    let newState = reducer(state, action)
+    state = newState
+    listeners.forEach(listener => listener())
+  }
+
+  // 参数为监听内部state更新的回调函数, 可以调用多次，可以绑定多个监听，监听是函数
+  function subscribe(listener) {
+    // 保存到缓存listener容器数组中
+    listeners.push(listener)
+  }
+
+  return {
+    getState,
+    dispatch,
+    subscribe
+  }
+}
+```
+
+
+
+#### 3.3 combineReducer实现
+
+- 核心功能
+
+> **接收一个对象,包含多个reducer函数,返回一个新的reducer函数, 调用新的reducer函数返回的是总的state状态数据**
+
+
+
+- 参数结构分析
+
+params: reducers, 由多个reducer函数组成的key-value
+
+```
+reducers的结构:
+{
+    count: (state = 2, action) => newState,
+    user: (state = {}, action) => {}
+}
+```
+
+- 返回值结构分析
+
+1. 返回一个新的reducer函数
+
+```js
+// 1. 返回新的reducer函数(作用:根据老的state以及action操作指令, 生成并返回新的state)
+return (state, action) => {
+    return newState = ...
+}
+```
+
+2. 新的reducer函数返回总的状态state数据
+
+```
+// 总的状态数据, 通过执行相对应的reducer函数返回的state赋值给reducer名作为属性
+{
+	count: count(state.count, action),
+	user: user(state.user, action)
+}
+```
+
+
+
+- 编码思路
+  1. 接收所有reducer组合成的对象
+  2. 返回新的reducer函数, 接收初始的state和action
+  3. 新的reducer函数中, 要返回总的状态state数据, 就必须调用每一个reducer函数, 得到一个新的子状态(每个reducer函数生成的), 并添加到一个对象容器
+
+
+
+- forEach版本
+
+```js
+function combineReducer(reducers) {
+  return (state = {}, action) => {
+    let totalState = {}
+    Object.keys(reducers).forEach(key => {
+      totalState[key] = reducers[key](state[key], action)
+    })
+    return totalState
+  }
+}
+```
+
+
+
+- reducer版本
+
+```js
+export function combineReducer(reducers) {
+  return (state = {}, action) => {
+    return Object.keys(reducers).reduce((totalState, key) => {
+      totalState[key] = reducers[key](state[key], action)
+      return totalState
+    }, {})
+  }
+}
+```
+
+
+
+### 4. 自定义react-redux
+
+#### 4.1 react-redux向外暴露了2个API
+
+1. Provider组件
+2. connect函数
+
+#### 4.2 Provider组件
+
+接收store属性
+
+让所有容器组件都可以看到store, 从而通过store读取/更新状态
+
+
+
+#### 4.3 connect函数
+
+接收2个参数: mapStateToProps 和 mapDispatchToProps
+
+mapStateToProps: 函数, 用来指定向UI组件传递哪些一般属性
+
+mapDispatchToProps: 一个函数或对象, 用来指定UI组件传递哪些函数属性
+
+connect()执行的返回值是一个**高阶组件**: 这个组件用来**包装UI组件**, 返回一个新的**容器组件**。容器组件会向UI组件**传入**前面指定的**一般属性 或 函数类型的属性**
+
+
+
+#### 4.4 使用了context来共享store
+
+1. context的理解
+
+相对于props, context可以非常方便的直接将数据传递给任何后代组件中, 而不用像props那样逐层传递，相当于提供了一个全局数据
+
+在应用开发中不太建议使用context, 但是react-redux使用它来共享store. 一般库的开发，数据共享使用context
+
+
+
+2. 父组件负责向后代组件提供数据，后代组件有能力获取数据，但是只有子组件进行声明才可以看到祖先组件中的state数据。子组件就是类似声明接收祖先组件传递过来的值。说白了，子组件如果想要父组件的数据，声明了就可以拿到。声明的方式其实就是对组件数据的保护, 不能父组件有state数据，所有子组件都可以访问，这样就违背了react数据传递的原则
+
+
+
+3. 代码实现
+
+- 代码结构: 暴露的2个方法 Provide和connect, 根据定义实现(legacy API,需要使用最新的API)
+
+```js
+import React from 'react'
+import PropTypes from 'prop-types'
+// PropTypes 提供一系列验证器，可用于确保组件接收到的数据类型是有效的
+// 出于性能方面的考虑，propTypes 仅在开发模式下进行检查
+
+// 用来向所有容器组件提供store的组件类
+export class Provider extends React.Component {
+  // 组件接收props的数据类型检查
+  static propTypes = {
+    store: PropTypes.object.isRequired
+  }
+
+  render() {
+    return (
+      <div>xxx</div>
+    )
+  }
+}
+
+/**
+ * connect高阶函数:接收mapStateToProps和mapDispatchToProps, 返回一个高阶组件函数
+ * 高阶组件: 接收UI组件,返回容器组件
+ */
+export function connect(mapStateToProps, mapDispatchToProps) {
+  // 返回高阶组件函数
+  return (UIComponent) => {
+    // 返回容器组件
+    return class ContainerComponent extends React.Component {
+      render() {
+        // 想办法想UI组件传递特定的标签属性(一般属性还是函数属性)
+        // 容器组件的内部要返回容器组件的标签，并制定特定属性
+        return <UIComponent />
+      }
+    }
+  }
+}
+```
+
+- 基于最新的React API实现的context
+
+```js
+import React from 'react'
+import store from '../../redux-use-case/store'
+// 创建上下文对象并初始化
+const Context = React.createContext(store)
+
+export class Provider extends React.Component {
+  render() {
+    return (
+      <Context.Provider value={store}>
+        {this.props.children}
+      </Context.Provider>
+    )
+  }
+}
+
+// 
+export function connect(mapStateToProps, mapDispatchToProps) {
+  return (UIComponent) => {
+
+    return class ContainerComponent extends React.Component {
+
+      static contextType = Context
+
+      render() {
+        console.log("this.context:", this.context)
+        return (
+          <UIComponent />
+        )
+      }
+    }
+  }
+}
+```
+
+
+
+- 要给UIComponent传递制定属性, 就要给它传递store对象. 需要store对象是因为
+  - 需要调用store的getState获取状态，才能传递一般属性。
+  - 需要传递函数属性, 函数属性的函数必然要调用dispatch方法,分发action,调用reducer进而更新状态
+  - subscribe: store中的状态更新默认是不重新渲染的,必须绑定监听, 在监听回调中重新渲染组件，组件才能更新
+
+- 要弄明白如何将一般属性以及函数属性传递给UI组件, 需要知道是react-redux是怎么用的
+
+> 精简版本
+
+```js
+import { increment, decrement } from './store/actions'
+export default connect(
+	// 接收state, 传递给Counter的props是count, 从state中来
+    state => ({ count: state.count }),	
+    // 两个action creator
+    {increment, decrement}
+)(Counter)
+```
+
+> 原始版本
+>
+> connect()函数接收两个参数,第一个参数是函数, 第二个有可能是函数,有可能是对象
+
+```js
+// 指定向Couter传入哪些一般属性(属性值的来源就是store中的state)
+// 此时state是合并之后的所以返回state.count,如果返回user, 返回state.user
+const mapStateToProps = state => ({ count: state.count }) 
+
+// 指定向Counter传入哪些函数属性
+// 如果是函数,会自动调用得到对象,将对象中的方法作为函数属性传入UI组件
+const mapDispatchToProps = dispatch => ({
+    increment: number => dispatch(increment(number)),
+    decrement: number => dispatch(decrement(number))
+})
+
+connect(
+	mapStateToProps,
+    mapDispatchToProps
+)(Couter)
+
+```
+
+
+
+> 如果第二个参数是个函数
+
+```js
+export function connect(mapStateToProps, mapDispatchToProps) {
+
+  return (UIComponent) => {
+
+    return class ContainerComponent extends React.Component {
+      static contextType = Context
+
+      constructor(props) {
+        super(props)
+        this.state = {
+          stateProps: {},
+          dispatchProps: {}
+        }
+      }
+
+      componentDidMount() {
+        const store = this.context
+        // 得到包含所有一般属性的对象
+        const stateProps = mapStateToProps(store.getState())
+
+        // 得到包含所有函数属性的对象
+        const dispatchProps = mapDispatchToProps(store.dispatch)
+        // 保存在组件上, 因为函数的定义是不会变的, 而状态stateProps是会更新的, 所以要保存到组件状态数据上
+        this.dispatchProps = dispatchProps
+
+        this.setState({
+          stateProps      // 将所有一般属性作为容器组件中的状态数据, 更新状态
+        })
+        // 绑定store的state变化的监听
+        store.subscribe(() => {   //  store内部的state状态数据发生了变化
+          // 更新容器组件(重新渲染组件[调用setState]),进而就更新了UI组件
+          this.setState({
+            stateProps: mapStateToProps(store.getState())     // 将所有一般属性作为容器组件中的状态数据, 更新状态
+          })
+        })
+      }
+
+      render() {
+        console.log("this.context:", this.context)
+        return (
+          <UIComponent {...this.state.stateProps} {...this.dispatchProps} />
+        )
+      }
+    }
+  }
+}
+```
+
+> 解析:
+>
+> 1. store的获取在DidMount中可以获取到, constructor中获取不到
+> 2. 调用mapStateToProps(store.getState())就可以获取到一般属性
+> 3. 调用mapDispatchToProps(store.dispatch)可以获取到函数属性
+> 4. 第一次渲染界面需要调用setState将获取的store的状态数据设置到容器组件上
+> 5. 监听store中的状态数据的更新, 当state变化了, 再次调用setState, 更新容器组件进而更新UI组件
+
+
+
+> 如果是对象
+
+```js
+componentDidMount() {
+        const store = this.context
+        // 得到包含所有一般属性的对象
+        const stateProps = mapStateToProps(store.getState())
+
+        // 得到包含所有函数属性的对象
+        let dispatchProps
+        // 判断mapDispatchToProps这个参数是函数还是对象
+        if (typeof mapDispatchToProps === 'function') {
+          dispatchProps = mapDispatchToProps(store.dispatch)
+        } else {
+          // 如果传递的是对象,类似{increment, decrement}
+          dispatchProps = Object.keys(mapDispatchToProps).reduce((pre, key) => {
+            const actionCreator = mapDispatchToProps[key] // increment
+            // 调用actionCreator返回一个action: { type: 'xxx', payload: data }
+            pre[key] = (...args) => store.dispatch(actionCreator(...args))
+            return pre
+          }, {})
+          // 最终返回的dispatchProps是什么? {increment: (...arge) => {函数内部调用dispatch(action)}} 触发reducer的状态更新
+          // 也就是遍历actionCreator,调用store.dispatch(action),返回一个这样的对象,包含了调用dispatch(action)的函数
+        }
+        // 保存在组件上, 因为函数的定义是不会变的, 而状态stateProps是会更新的, 所以要保存到组件状态数据上
+        this.dispatchProps = dispatchProps
+
+        this.setState({
+          stateProps      // 将所有一般属性作为容器组件中的状态数据, 更新状态
+        })
+        // 绑定store的state变化的监听
+        store.subscribe(() => {   //  store内部的state状态数据发生了变化
+          // 更新容器组件(重新渲染组件[调用setState]),进而就更新了UI组件
+          this.setState({
+            stateProps: mapStateToProps(store.getState())     // 将所有一般属性作为容器组件中的状态数据, 更新状态
+          })
+        })
+      }
+```
+
