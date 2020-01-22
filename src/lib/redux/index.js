@@ -1,58 +1,54 @@
-// 精简版redux 的核心 store
-// 维护着 公共state 以及 reducer处理状态函数
+// redux核心暴露函数, 创建store对象, 暴露于store对象有关的接口
+// 核心维护的是状态数据(获取(getState),更新触发(dispatch),订阅更新)
 
-// 向外暴露三个核心api 
-// createStore combineReducer
+export function createStore(reducers) {
 
-// 接收reducer, 返回一个对象 --> store, 这个对象包含了三个主要属性(属性值是函数)
-export function createStore(reducer) {
+  let state = reducers(undefined, { type: '@@redux/init' })
+  let listeners = []
 
-  // store中的state是调用reducer产生的初始化state
-  // 用来存储内部状态数据的变量, 初始值为调用reducer函数返回的结果(外部指定的默认值)
-  let state = reducer(undefined, { type: '@@redux/init' })
-  // 用来存储监听state更新回调函数的数组容器
-  const listeners = []
-
-  // 返回当前内部的state数据
   function getState() {
     return state
   }
 
-  // 分发action, 触发reducer函数的调用, 产生新的state
-  /**
-   * 1. 触发reducer调用，得到新的state
-   * 2. 保存新的state
-   * 3. 调用所有已经存在的监视回调函数
-   * @param {*} action 
-   */
   function dispatch(action) {
-    // 1. 触发reducer调用，得到新的state
-    const newState = reducer(state, action)
-    // 2. 保存新的state
+    const newState = reducers(state, action)    // state是总的state, 调用后返回的newState也是总的state
     state = newState
-    // 3. 调用所有已经存在的监视回调函数
     listeners.forEach(listener => listener())
   }
 
-  // 绑定内部state改变的监听回调 redux维护的state如果发生变化,就会调用subscribe所对应的回调函数
-  // 可以给一个store绑定多个监听
   function subscribe(listener) {
     listeners.push(listener)
   }
-
 
   return {
     getState,
     dispatch,
     subscribe
   }
+
 }
 
-
-// 1. 整合传入参数对象中的多个reducer函数，返回一个新的reducer
-// 2. 新的reducer管理的总状态：{ r1: state1, r2: state2 }
+// 接收一个对象,返回一个新的reducer函数
 export function combineReducer(reducers) {
+  // 新的reducer函数返回值是一个总的state
   return (state, action) => {
+    let newState = {}
+    // 调用reducers 集合, 生成新的state集合
+    Object.keys(reducers).forEach(key => {
+      // 执行自己的reducer函数,使用自己的state状态数据,action是通用,不能重复
+      newState[key] = reducers[key](state[key], action)
+    })
+    return newState
+  }
+}
 
+export function combineReducerByReduce(reducers) {
+  // 返回一个reducer函数,是为了在createStore接收这个函数, 并在函数中执行, 传入初始化的state,和action: {type:'@@redux/init'}
+  return (initState = {}, action) => {
+    // 执行所有的reducers
+    return Object.keys(reducers).reduce((totalState, key) => {
+      totalState[key] = reducers[key](initState[key], action)
+      return totalState
+    }, {})
   }
 }

@@ -1,9 +1,10 @@
 import React from 'react';
 import './App.css';
-import { increment } from './redux-use-case/actions'
+// import { increment } from './redux-use-case/actions'
 
 import A from './pages/nested'
 import Counter from './pages/counter'
+import LifeCycleDidUpdate from './pages/propsChangeUpdate'
 
 function App(props) {
 
@@ -18,6 +19,7 @@ function App(props) {
     <div>
       <A />
       <Counter />
+      <LifeCycleDidUpdate />
     </div>
   );
 }

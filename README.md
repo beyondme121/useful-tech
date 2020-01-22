@@ -1135,11 +1135,21 @@ export function combineReducer(reducers) {
 
 接收2个参数: mapStateToProps 和 mapDispatchToProps
 
-mapStateToProps: 函数, 用来指定向UI组件传递哪些一般属性
+**mapStateToProps:** 
 
-mapDispatchToProps: 一个函数或对象, 用来指定UI组件传递哪些函数属性
+1. 是一个函数, 返回包含n个一般属性的对象, 用来指定向UI组件传递哪些一般属性
+2. 容器组件中调用该函数后得到对象后, 初始化为容器组件的初始状态, 并指定UI组件标签的一般属性
 
-connect()执行的返回值是一个**高阶组件**: 这个组件用来**包装UI组件**, 返回一个新的**容器组件**。容器组件会向UI组件**传入**前面指定的**一般属性 或 函数类型的属性**
+**mapDispatchToProps:** 
+
+一个函数或对象, 用来指定向UI组件传递哪些函数属性
+
+connect()执行的返回值是一个**高阶组件**: 这个高阶组件用来**包装UI组件**, 返回一个新的**容器组件**。容器组件会向UI组件**传入**前面指定的**一般属性 或 函数类型的属性**
+
+1. 如果是函数,调用得到包含n个dispatch方法的对象
+2. 如果是对象, 遍历封装成n个dispatch方法的对象
+3. 将包含n个dispatch方法的对象分别作为函数属性传入UI组件
+4. 通过store绑定state变化的监听，在回调函数中根据store中最新的state数据更新容器组件状态，从而更新UI组件
 
 
 
@@ -1383,4 +1393,8 @@ componentDidMount() {
         })
       }
 ```
+
+
+
+### 5. 手写react-router-dom
 

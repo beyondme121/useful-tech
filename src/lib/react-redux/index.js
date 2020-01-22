@@ -1,19 +1,121 @@
-import React from 'react'
-import store from '../../redux-use-case/store'
-// 创建上下文对象并初始化
-const Context = React.createContext(store)
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
 
-export class Provider extends React.Component {
+const Context = React.createContext()
+
+export class Provider extends Component {
+  // 接收参数类型校验
+  static propTypes = {
+    store: PropTypes.object.isRequired
+  }
+
+  constructor(props) {
+    super(props)
+    // 初始化一个Context,默认值是传递进来的store对象
+    // Context = React.createContext(props.store || {})
+    // console.log('Context', Context)
+  }
+
   render() {
     return (
-      <Context.Provider value={store}>
+      <Context.Provider value={this.props.store}>
         {this.props.children}
       </Context.Provider>
     )
   }
 }
 
-// 
+// 1. mapStateToProps:函数, mapDispatchToProps: 函数或者对象
+// 2. 函数调用后返回一个高阶组件,包装 UI组件 返回 容器组件, 处理UI组件,给UI组件添加一般属性和函数属性
+export function connect(mapStateToProps, mapDispatchToProps) {
+  return UIComponent => {
+    return class Container extends React.Component {
+      // mapStateToProps形参是state,就是全局的state,从store中来
+      static contextType = Context
+
+      constructor(props) {
+        super(props)
+        this.state = {
+          ordinaryProps: {}
+        }
+      }
+
+      // 获取一般属性
+      getOrdinaryProps = store => {
+        const props = mapStateToProps(store.getState())
+        return props
+      }
+
+      // 获取更新状态的函数属性
+      getDispatchProps = store => {
+        // 如果传递的是dispatch函数
+        if (typeof mapDispatchToProps === 'function') {
+          return mapDispatchToProps(store.dispatch)
+        } else {
+          // 传递的是对象, 由action creator组成
+          // console.log('mapDispatchToProps:', mapDispatchToProps)
+          return Object.keys(mapDispatchToProps).reduce((pre, key) => {
+            let actionCreator = mapDispatchToProps[key]
+            pre[key] = (...args) => store.dispatch(actionCreator(...args))
+            return pre
+          }, {})
+        }
+      }
+
+      componentDidMount() {
+        const store = this.context
+        const ordinaryProps = this.getOrdinaryProps(store)
+        const dispatchProps = this.getDispatchProps(store)
+        this.setState({
+          ordinaryProps
+        })
+        this.dispatchProps = dispatchProps
+        // 这个生命周期可以添加订阅
+        store.subscribe(() => {
+          // 当store中的状态state数据发生更新, 就会触发容器组件的state更新, 
+          // 进而会重新调用render, 最终会重新渲染UI组件的更新
+          this.setState({
+            ordinaryProps: this.getOrdinaryProps(store)
+          })
+        })
+      }
+
+      render() {
+        return (
+          <UIComponent {...this.state.ordinaryProps} {...this.dispatchProps} />
+        )
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 export function connect(mapStateToProps, mapDispatchToProps) {
 
   return (UIComponent) => {
@@ -74,3 +176,4 @@ export function connect(mapStateToProps, mapDispatchToProps) {
     }
   }
 }
+*/

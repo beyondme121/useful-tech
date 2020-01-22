@@ -8,19 +8,19 @@ import {
 
 
 function count(state = 1, action) {
-  console.log('reducer count call,', state, action)
   switch (action.type) {
     case INCREMENT:
-      return state + 1
+      return state + action.data;
+      break;
     case DECREMENT:
-      return state - 1
+      return state - action.data
+      break;
     default:
       return state
   }
 }
 
 function user(state = {}, action) {
-  console.log('user(),', state, action)
   switch (action.type) {
     default:
       return state

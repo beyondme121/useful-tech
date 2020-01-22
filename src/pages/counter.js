@@ -1,17 +1,27 @@
 import React, { Component } from 'react'
 import { connect } from '../lib/react-redux'
-import { increment } from '../redux-use-case/actions'
+import { increment, decrement } from '../redux-use-case/actions'
+
 class Counter extends Component {
 
-  handleClick = () => {
-    this.props.increment()
+  state = {
+    obj: { name: 'sanfeng' }
+  }
+  handleAdd = (num) => {
+    this.props.increment(num)
+  }
+
+  handleMinus = num => {
+    this.props.decrement(num)
   }
 
   render() {
     return (
       <div>
-        test: {this.props.count}
-        <button onClick={this.handleClick}>加1</button>
+        React-Redux Counter: {this.props.count}
+        <p>{this.state.obj.name}</p>
+        <button onClick={() => this.handleAdd(100)}>加100</button>
+        <button onClick={() => this.handleMinus(2)}>减2</button>
       </div>
     )
   }
@@ -24,8 +34,15 @@ const mapStateToProps = state => ({ count: state.count })
 //   increment: () => dispatch(increment())
 // })
 
+const mapDispatchToProps = dispatch => {
+  return {
+    decrement: (num) => dispatch(decrement(num)),
+    increment: num => dispatch(increment(num))
+  }
+}
+
 // 对象类型
-const mapDispatchToProps = { increment }
+// const mapDispatchToProps = { increment, decrement }
 
 export default connect(
   mapStateToProps,
